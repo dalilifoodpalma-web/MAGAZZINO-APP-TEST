@@ -1,0 +1,18 @@
+
+{
+  "short_name": "DaliliMag",
+  "name": "DALILI' - Gestione Magazzino",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2897/2897785.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#f8fafc",
+  "display": "standalone",
+  "theme_color": "#4f46e5",
+  "description": "Sistema intelligente di gestione magazzino con IA."
+}

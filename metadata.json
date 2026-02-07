@@ -1,0 +1,5 @@
+{
+  "name": "DALILI' - MAGAZZINO [APP-TEST]",
+  "description": "Un'applicazione avanzata per la gestione del magazzino che utilizza l'IA per estrarre automaticamente prodotti e dati dalle fatture PDF caricate, organizzandoli per mese.",
+  "requestFramePermissions": []
+}
