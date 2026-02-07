@@ -84,6 +84,12 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
       for (const data of extractedDataArray) {
         const internalId = `REV-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
         
+        // Pulizia nome fornitore: evitiamo nomi troppo lunghi o con Partita IVA inclusa se possibile
+        const cleanSupplier = (data.supplier || 'Fornitore Generico')
+          .split('\n')[0]
+          .replace(/P\.IVA|PIVA|Partita IVA.*/gi, '')
+          .trim();
+
         const products: Product[] = (data.products || []).map((p: any, index: number) => ({
           id: `${internalId}-P${index}`,
           sku: String(p.code || '').trim(),
@@ -96,7 +102,7 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
           invoiceDate: data.date,
           invoiceId: internalId,
           invoiceNumber: String(data.documentNumber || 'N/D'),
-          supplier: String(data.supplier || 'Fornitore Generico'),
+          supplier: cleanSupplier,
           docType: 'reviewInvoice'
         }));
 
@@ -104,8 +110,10 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
           id: internalId,
           documentNumber: String(data.documentNumber || 'N/D'),
           date: data.date,
-          dueDate: data.dueDate,
-          supplier: String(data.supplier || 'Fornitore Generico'),
+          // Fallback di sicurezza: se dueDate manca o è uguale alla data del documento ma sembra un errore, 
+          // usiamo la data del documento come base.
+          dueDate: data.dueDate || data.date,
+          supplier: cleanSupplier,
           fileName: file.name,
           totalAmount: data.totalAmount || products.reduce((sum, p) => sum + p.totalPrice, 0),
           paidAmount: 0,

@@ -250,7 +250,7 @@ const PhysicalInventoryManager: React.FC<PhysicalInventoryManagerProps> = ({
               <h3 className="text-xl font-bold text-slate-900">Importa Inventario Reale</h3>
               <p className="text-slate-500 text-sm max-w-sm mx-auto mt-1">Carica il tuo file Excel con le scorte fisiche per vedere gli scostamenti rispetto alle fatture caricate.</p>
             </div>
-            <span className="mt-2 inline-flex px-10 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition shadow-lg">Carica File</span>
+            <span className="mt-2 inline-flex px-10 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">Carica File</span>
           </label>
         )}
       </div>

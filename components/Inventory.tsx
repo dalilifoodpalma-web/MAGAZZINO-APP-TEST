@@ -84,11 +84,15 @@ const Inventory: React.FC<InventoryProps> = ({
   };
 
   const normalizeCategory = (cat: string): string => {
-    if (!cat) return 'Verdura';
+    if (!cat) return 'Generico';
     const c = cat.toLowerCase().trim();
+    
+    // Mappatura pro-attiva per produce
     if (c.includes('vegetable') || c.includes('verdura') || c.includes('insalata') || c.includes('ortaggi')) return 'Verdura';
     if (c.includes('fruit') || c.includes('frutta')) return 'Frutta';
-    return 'Verdura'; // Default
+    
+    // Altrimenti ritorna la categoria suggerita dall'IA con la prima lettera maiuscola
+    return cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
   };
 
   const filteredInventory = useMemo(() => {
@@ -167,7 +171,6 @@ const Inventory: React.FC<InventoryProps> = ({
               {t.exportExcel}
             </button>
             
-            {/* Nuovo Pulsante Svuota Magazzino con Selezione Anno */}
             <div className="relative" ref={resetMenuRef}>
               <button 
                 onClick={() => setIsResetMenuOpen(!isResetMenuOpen)}
@@ -289,7 +292,7 @@ const Inventory: React.FC<InventoryProps> = ({
                                       {p.sku && <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">#{p.sku}</span>}
                                     </div>
                                     <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-[10px] text-indigo-600 font-bold uppercase">{p.category}</span>
+                                      <span className="text-[10px] text-indigo-600 font-bold uppercase">{normalizeCategory(p.category)}</span>
                                       <span className="text-slate-300">|</span>
                                       <span className="text-[10px] text-slate-400 italic">Doc: {p.invoiceNumber}</span>
                                     </div>

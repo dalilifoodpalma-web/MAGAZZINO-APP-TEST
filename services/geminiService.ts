@@ -9,10 +9,10 @@ const DOCUMENT_RESPONSE_SCHEMA = {
       items: {
         type: Type.OBJECT,
         properties: {
-          supplier: { type: Type.STRING },
+          supplier: { type: Type.STRING, description: "Ragione Sociale del CEDENTE/PRESTATORE (chi emette la fattura). Non confondere con il cliente." },
           documentNumber: { type: Type.STRING },
-          date: { type: Type.STRING },
-          dueDate: { type: Type.STRING },
+          date: { type: Type.STRING, description: "Data emissione documento in formato YYYY-MM-DD" },
+          dueDate: { type: Type.STRING, description: "Data di scadenza del pagamento in formato YYYY-MM-DD. Cerca 'Scadenza', 'Data Scadenza' o 'Saldare entro'." },
           isCreditNote: { type: Type.BOOLEAN },
           totalAmount: { type: Type.NUMBER, description: "Il totale finale del documento inclusa IVA e oneri" },
           products: {
@@ -26,7 +26,7 @@ const DOCUMENT_RESPONSE_SCHEMA = {
                 unit: { type: Type.STRING, description: "Usa solo 'UD' per unità/pezzo, 'KG' per peso, 'CJ' per casse/confezioni." },
                 unitPrice: { type: Type.NUMBER },
                 totalPrice: { type: Type.NUMBER },
-                category: { type: Type.STRING, description: "Usa solo 'Frutta' o 'Verdura'. Mappa 'Vegetables' a 'Verdura'." }
+                category: { type: Type.STRING, description: "Assegna una categoria logica basata sul prodotto (es. Frutta, Verdura, Alimentari, Bevande, Carne, Latticini, Pesce, Pulizia, No-Food, ecc.). Sii specifico." }
               },
               required: ["name", "quantity", "unit"]
             }
@@ -39,29 +39,44 @@ const DOCUMENT_RESPONSE_SCHEMA = {
   required: ["documents"]
 };
 
-const SYSTEM_INSTRUCTION = `Sei un estrattore dati ultra-veloce per la gestione magazzino. 
-Estrai in JSON: fornitore, numero, data, scadenza, nota credito, TOTALE DOCUMENTO FINALE e lista prodotti.
+const SYSTEM_INSTRUCTION = `Sei un esperto contabile digitale specializzato in fatture italiane. 
+Estrai i dati in JSON con precisione chirurgica.
+
+REGOLE FORNITORE:
+- Il FORNITORE è il 'Cedente' o 'Prestatore'. È l'azienda che emette la fattura, solitamente indicata nel logo o nell'intestazione principale.
+- NON estrarre il 'Cessionario' o 'Committente' (che è il cliente).
+
+REGOLE SCADENZA:
+- Cerca esplicitamente le scadenze dei pagamenti. Se ci sono più rate, prendi l'ultima o la data indicata come 'Data Scadenza'.
+- Se non è indicata, restituisci la stessa data del documento.
 
 REGOLE UNITA DI MISURA:
-- Usa 'UD' per tutto ciò che è unità, pezzi, singole unità (es. PZ, UN, Pezzo).
-- Usa 'KG' per prodotti a peso (es. KG, Kilo, Grammi).
-- Usa 'CJ' per confezioni, casse, box, colli (es. CA, CT, CS, Cassa, Box).
+- 'UD' = Pezzi, Unità, Cad.
+- 'KG' = Chilogrammi, Grammi.
+- 'CJ' = Casse, Confezioni, Cartoni.
 
-REGOLE CATEGORIE: 
-- Usa esclusivamente 'Frutta' o 'Verdura'.
-
-IMPORTANTE DATE: Le date DEVONO essere in formato YYYY-MM-DD.
-Mancanti = 0 o "". Solo JSON.`;
+IMPORTANTE DATE: Le date DEVONO essere in formato YYYY-MM-DD. Se trovi formati come DD/MM/YYYY, convertili. Solo JSON.`;
 
 const normalizeDate = (dateStr: string): string => {
-  if (!dateStr) return new Date().toISOString().split('T')[0];
+  if (!dateStr || dateStr === "N/D" || dateStr === "0") return new Date().toISOString().split('T')[0];
+  
+  // Rimuovi caratteri non necessari
   const cleanDate = dateStr.trim().replace(/[^\d\/\.\-]/g, '');
+  
+  // Gestione formato DD/MM/YYYY o DD.MM.YYYY
   const parts = cleanDate.split(/[\.\/\-]/);
   if (parts.length === 3) {
-    if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    if (parts[0].length === 4) {
+      // Già YYYY-MM-DD
+      return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    } else {
+      // Da DD-MM-YYYY a YYYY-MM-DD
+      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
   }
-  return dateStr;
+  
+  // Fallback se la stringa è strana
+  return dateStr.length === 10 && dateStr.includes('-') ? dateStr : new Date().toISOString().split('T')[0];
 };
 
 const wait = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -75,12 +90,12 @@ export const extractDocumentData = async (base64Data: string, mimeType: string, 
 
   try {
     const apiCall = ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: 'gemini-3-flash-preview',
       contents: [
         {
           parts: [
             { inlineData: { data: base64Data, mimeType: mimeType } },
-            { text: "Estrai prodotti e totali in JSON. Normalizza unità in UD, KG, CJ." }
+            { text: "Estrai prodotti e totali in JSON. Identifica correttamente il Fornitore (Cedente) e la Data di Scadenza del pagamento." }
           ]
         }
       ],
