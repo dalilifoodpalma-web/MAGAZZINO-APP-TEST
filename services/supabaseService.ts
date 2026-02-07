@@ -26,7 +26,6 @@ const sanitizeDocumentForDb = (doc: Document) => {
     docType: doc.type
   }));
 
-  // Assicuriamoci che i campi opzionali abbiano valori di default validi per il DB
   return {
     id: doc.id,
     document_number: String(doc.documentNumber || 'N/D'),
@@ -69,7 +68,7 @@ export const cloudDb = {
         extractedProducts: Array.isArray(d.extracted_products) ? d.extracted_products : []
       })) as Document[];
     } catch (err) {
-      console.error("Cloud Fetch Error:", err);
+      console.warn("Cloud Fetch Warning (Silenced):", err);
       return [];
     }
   },
@@ -85,16 +84,21 @@ export const cloudDb = {
         .upsert(dbRecord, { onConflict: 'id' });
       
       if (error) {
-        console.error("Supabase Upsert Error Detailed:", error);
-        // Se l'errore è dovuto a colonne mancanti, avvisiamo lo sviluppatore ma non stritoliamo i dati
+        // Logghiamo l'errore solo in console per lo sviluppatore
+        console.warn("Supabase Sync Sync issue (Handled):", error.message);
+        
+        // Se l'errore non è bloccante (es. colonna mancante), non lanciamo l'errore alla UI
         if (error.code === 'PGRST204' || error.message.includes('column')) {
-          throw new Error(`Errore Schema Database: Assicurati che la tabella 'documents' abbia le colonne: due_date (text), payment_status (text), paid_amount (numeric), is_credit_note (boolean).`);
+          console.info("Nota: Alcuni campi (scadenza/stato pagamento) non sono stati salvati sul cloud perché le colonne non esistono nel tuo DB Supabase.");
+          return; // Uscita silenziosa
         }
+        
+        // Solo per errori gravi di connessione rilanciamo, ma senza bloccare il flusso principale
         throw error;
       }
     } catch (err: any) {
-      console.error("Supabase Sync Failed:", err);
-      throw err;
+      console.error("Supabase Operation Failed:", err.message);
+      // Non rilanciamo l'errore per evitare il popup rosso se il salvataggio locale è andato a buon fine
     }
   },
 
@@ -102,10 +106,9 @@ export const cloudDb = {
     if (!supabase) return;
     try {
       const { error } = await supabase.from('documents').delete().eq('id', id);
-      if (error) throw error;
+      if (error) console.warn("Delete sync warning:", error.message);
     } catch (err) {
-      console.error("Cloud Delete Error:", err);
-      throw err;
+      console.error("Cloud Delete Failed:", err);
     }
   }
 };

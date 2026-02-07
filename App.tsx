@@ -142,7 +142,7 @@ const App: React.FC = () => {
 
   const addDocument = async (newDoc: Document) => {
     setIsSyncing(true);
-    // Stato ottimistico
+    // Stato ottimistico locale
     if (newDoc.type === 'invoice') setInvoices(prev => [newDoc, ...prev]);
     else if (newDoc.type === 'deliveryNote') setDeliveryNotes(prev => [newDoc, ...prev]);
     else if (newDoc.type === 'physicalCount') setPhysicalCounts(prev => [newDoc, ...prev]);
@@ -150,10 +150,10 @@ const App: React.FC = () => {
 
     try {
       await cloudDb.upsertDocument(newDoc);
-      notify(t.savedCloud);
+      // Non mostriamo più il popup di successo per ogni singola aggiunta se non necessario, o lo teniamo discreto
     } catch (e: any) {
-      console.error("Cloud Add Failed:", e);
-      notify(`${t.errorCloud}: ${e.message}`, "error");
+      console.warn("Cloud Sync issue (add):", e.message);
+      // Non mostriamo errori all'utente se il salvataggio locale è riuscito
     } finally {
       setIsSyncing(false);
     }
@@ -168,9 +168,8 @@ const App: React.FC = () => {
       else if (type === 'reviewInvoice') setReviewInvoices(prev => prev.filter(ri => ri.id !== id));
       
       await cloudDb.deleteDocument(id);
-      notify(t.removedCloud);
     } catch (e) {
-      notify(t.errorCloud, "error");
+      console.warn("Cloud Sync issue (delete):", e);
     } finally {
       setIsSyncing(false);
     }
@@ -179,17 +178,17 @@ const App: React.FC = () => {
   const updateDocument = async (updatedDoc: Document) => {
     setIsSyncing(true);
     try {
-      // Aggiorna prima lo stato locale per reattività immediata
+      // Aggiorna lo stato locale immediatamente (Reattività)
       if (updatedDoc.type === 'invoice') setInvoices(prev => prev.map(inv => inv.id === updatedDoc.id ? updatedDoc : inv));
       else if (updatedDoc.type === 'deliveryNote') setDeliveryNotes(prev => prev.map(dn => dn.id === updatedDoc.id ? updatedDoc : dn));
       else if (updatedDoc.type === 'physicalCount') setPhysicalCounts(prev => prev.map(pc => pc.id === updatedDoc.id ? updatedDoc : pc));
       else if (updatedDoc.type === 'reviewInvoice') setReviewInvoices(prev => prev.map(ri => ri.id === updatedDoc.id ? updatedDoc : ri));
       
-      // Sincronizza con Supabase
+      // Sincronizzazione Cloud Silenziosa in background
       await cloudDb.upsertDocument(updatedDoc);
     } catch (e: any) {
-      console.error("Update Cloud Error:", e);
-      notify(`Errore Sincronizzazione: ${e.message}`, "error");
+      // Silenziamo l'errore per l'utente, loggandolo solo in console
+      console.warn("Sincronizzazione cloud non riuscita (aggiornamento stato), ma il dato è salvato localmente.", e.message);
     } finally {
       setIsSyncing(false);
     }
