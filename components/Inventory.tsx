@@ -87,11 +87,21 @@ const Inventory: React.FC<InventoryProps> = ({
     if (!cat) return 'Generico';
     const c = cat.toLowerCase().trim();
     
-    // Mappatura pro-attiva per produce
+    // Mappatura pro-attiva per raggruppare termini simili
     if (c.includes('vegetable') || c.includes('verdura') || c.includes('insalata') || c.includes('ortaggi')) return 'Verdura';
     if (c.includes('fruit') || c.includes('frutta')) return 'Frutta';
+    if (c.includes('carne') || c.includes('meat') || c.includes('pollame') || c.includes('macelleria')) return 'Carne';
+    if (c.includes('pesce') || c.includes('fish') || c.includes('mare') || c.includes('ittico')) return 'Pesce';
+    if (c.includes('dolce') || c.includes('sweet') || c.includes('dessert') || c.includes('pasticceria') || c.includes('zucchero')) return 'Dolci';
+    if (c.includes('latticin') || c.includes('formagg') || c.includes('dairy') || c.includes('latte')) return 'Latticini';
+    if (c.includes('bevande') || c.includes('drink') || c.includes('beverage') || c.includes('alcol') || c.includes('vino')) return 'Bevande';
+    if (c.includes('tasse') || c.includes('oneri') || c.includes('spese') || c.includes('bollo') || c.includes('trasporto')) return 'Tasse ed oneri';
+    if (c.includes('surgelat') || c.includes('frozen')) return 'Surgelati';
+    if (c.includes('pulizia') || c.includes('detergent') || c.includes('cleaning')) return 'Pulizia';
+    if (c.includes('gastronomia') || c.includes('preparati') || c.includes('rosticceria')) return 'Gastronomia';
+    if (c.includes('alimentari') || c.includes('pasta') || c.includes('olio') || c.includes('secco')) return 'Alimentari';
     
-    // Altrimenti ritorna la categoria suggerita dall'IA con la prima lettera maiuscola
+    // Fallback con Capitalize
     return cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
   };
 

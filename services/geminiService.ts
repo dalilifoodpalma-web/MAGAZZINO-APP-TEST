@@ -26,7 +26,7 @@ const DOCUMENT_RESPONSE_SCHEMA = {
                 unit: { type: Type.STRING, description: "Usa solo 'UD' per unità/pezzo, 'KG' per peso, 'CJ' per casse/confezioni." },
                 unitPrice: { type: Type.NUMBER },
                 totalPrice: { type: Type.NUMBER },
-                category: { type: Type.STRING, description: "Assegna una categoria logica basata sul prodotto (es. Frutta, Verdura, Alimentari, Bevande, Carne, Latticini, Pesce, Pulizia, No-Food, ecc.). Sii specifico." }
+                category: { type: Type.STRING, description: "Assegna una categoria specifica (es. Frutta, Verdura, Carne, Pesce, Latticini, Salumi, Dolci, Panetteria, Bevande, Surgelati, Gastronomia, Pulizia, Packaging, Tasse ed oneri)." }
               },
               required: ["name", "quantity", "unit"]
             }
@@ -39,43 +39,40 @@ const DOCUMENT_RESPONSE_SCHEMA = {
   required: ["documents"]
 };
 
-const SYSTEM_INSTRUCTION = `Sei un esperto contabile digitale specializzato in fatture italiane. 
-Estrai i dati in JSON con precisione chirurgica.
+const SYSTEM_INSTRUCTION = `Sei un esperto contabile e gestore magazzino specializzato nel settore food & beverage.
+Estrai i dati in JSON con precisione assoluta.
 
-REGOLE FORNITORE:
-- Il FORNITORE è il 'Cedente' o 'Prestatore'. È l'azienda che emette la fattura, solitamente indicata nel logo o nell'intestazione principale.
-- NON estrarre il 'Cessionario' o 'Committente' (che è il cliente).
+CLASSIFICAZIONE PRODOTTI (CATEGORY):
+Classifica ogni riga del documento in una di queste macro-categorie o creane una pertinente se necessario:
+- 'Frutta' / 'Verdura'
+- 'Carne' (Pollame, Bovino, Suino, ecc.)
+- 'Pesce' (Fresco, Congelato, Crostacei)
+- 'Latticini' (Formaggi, Latte, Burro, Panna)
+- 'Salumi' (Prosciutti, Salami, Insaccati)
+- 'Dolci' (Zucchero, Cioccolato, Pasticceria, Dessert)
+- 'Bevande' (Acqua, Vino, Birra, Bibite, Alcolici)
+- 'Alimentari' (Pasta, Farina, Olio, Spezie, Scatolame)
+- 'Gastronomia' (Preparati, Sughi pronti, Rosticceria)
+- 'Surgelati' (Se non già classificati come carne/pesce)
+- 'Pulizia' (Detersivi, Sanificanti)
+- 'Packaging' (Vaschette, Carta, Scatole)
+- 'Tasse ed oneri' (Bolli, Trasporto, Commissioni, Oneri bancari, Spese incasso)
 
-REGOLE SCADENZA:
-- Cerca esplicitamente le scadenze dei pagamenti. Se ci sono più rate, prendi l'ultima o la data indicata come 'Data Scadenza'.
-- Se non è indicata, restituisci la stessa data del documento.
+REGOLE FORNITORE E DATE:
+- Il FORNITORE è il 'Cedente'. Ignora il cliente.
+- Date sempre YYYY-MM-DD.
+- 'UD' = Pezzi, 'KG' = Peso, 'CJ' = Casse/Confezioni.
 
-REGOLE UNITA DI MISURA:
-- 'UD' = Pezzi, Unità, Cad.
-- 'KG' = Chilogrammi, Grammi.
-- 'CJ' = Casse, Confezioni, Cartoni.
-
-IMPORTANTE DATE: Le date DEVONO essere in formato YYYY-MM-DD. Se trovi formati come DD/MM/YYYY, convertili. Solo JSON.`;
+Solo JSON in uscita.`;
 
 const normalizeDate = (dateStr: string): string => {
   if (!dateStr || dateStr === "N/D" || dateStr === "0") return new Date().toISOString().split('T')[0];
-  
-  // Rimuovi caratteri non necessari
   const cleanDate = dateStr.trim().replace(/[^\d\/\.\-]/g, '');
-  
-  // Gestione formato DD/MM/YYYY o DD.MM.YYYY
   const parts = cleanDate.split(/[\.\/\-]/);
   if (parts.length === 3) {
-    if (parts[0].length === 4) {
-      // Già YYYY-MM-DD
-      return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-    } else {
-      // Da DD-MM-YYYY a YYYY-MM-DD
-      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-    }
+    if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
   }
-  
-  // Fallback se la stringa è strana
   return dateStr.length === 10 && dateStr.includes('-') ? dateStr : new Date().toISOString().split('T')[0];
 };
 
@@ -95,7 +92,7 @@ export const extractDocumentData = async (base64Data: string, mimeType: string, 
         {
           parts: [
             { inlineData: { data: base64Data, mimeType: mimeType } },
-            { text: "Estrai prodotti e totali in JSON. Identifica correttamente il Fornitore (Cedente) e la Data di Scadenza del pagamento." }
+            { text: "Estrai prodotti e totali in JSON. Classifica ogni riga con la categoria merceologica corretta (Carne, Pesce, Dolci, Tasse, ecc.)." }
           ]
         }
       ],

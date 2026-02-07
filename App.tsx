@@ -73,12 +73,26 @@ const App: React.FC = () => {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Funzione per unire documenti locali e cloud evitando duplicati e perdite di dati
+  // Funzione per unire documenti locali e cloud in modo intelligente
   const mergeDocuments = (local: Document[], cloud: Document[]) => {
     const map = new Map<string, Document>();
+    // Carica locali
     local.forEach(d => map.set(d.id, d));
-    // Il cloud sovrascrive il locale solo se l'ID esiste, altrimenti aggiunge
-    cloud.forEach(d => map.set(d.id, d));
+    // Unisci cloud: se esiste già, mantieni quello con lo stato di pagamento più "avanzato"
+    cloud.forEach(d => {
+      const existing = map.get(d.id);
+      if (existing) {
+        // Se locale è 'paid' e cloud no, diamo fiducia al locale finché il cloud non si aggiorna
+        const existingPriority = existing.paymentStatus === 'paid' ? 2 : (existing.paymentStatus === 'partial' ? 1 : 0);
+        const cloudPriority = d.paymentStatus === 'paid' ? 2 : (d.paymentStatus === 'partial' ? 1 : 0);
+        
+        if (cloudPriority >= existingPriority) {
+          map.set(d.id, d);
+        }
+      } else {
+        map.set(d.id, d);
+      }
+    });
     return Array.from(map.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
@@ -86,7 +100,7 @@ const App: React.FC = () => {
     const initData = async () => {
       setIsSyncing(true);
       try {
-        // 1. Carichiamo prima il locale per velocità e sicurezza
+        // 1. Carichiamo prima il locale per velocità
         const savedInvoices = JSON.parse(localStorage.getItem('invoices') || '[]');
         const savedBolle = JSON.parse(localStorage.getItem('deliveryNotes') || '[]');
         const savedPhysical = JSON.parse(localStorage.getItem('physicalCounts') || '[]');
@@ -97,7 +111,7 @@ const App: React.FC = () => {
         setPhysicalCounts(savedPhysical);
         setReviewInvoices(savedReview);
 
-        // 2. Se Supabase è attivo, facciamo il merge dei dati
+        // 2. Se Supabase è attivo, facciamo il merge dei dati cloud
         if (supabase) {
           const cloudDocs = await cloudDb.getAllDocuments();
           if (cloudDocs && cloudDocs.length > 0) {
@@ -128,7 +142,7 @@ const App: React.FC = () => {
 
   const addDocument = async (newDoc: Document) => {
     setIsSyncing(true);
-    // Aggiornamento ottimistico dello stato locale
+    // Stato ottimistico
     if (newDoc.type === 'invoice') setInvoices(prev => [newDoc, ...prev]);
     else if (newDoc.type === 'deliveryNote') setDeliveryNotes(prev => [newDoc, ...prev]);
     else if (newDoc.type === 'physicalCount') setPhysicalCounts(prev => [newDoc, ...prev]);
@@ -138,8 +152,8 @@ const App: React.FC = () => {
       await cloudDb.upsertDocument(newDoc);
       notify(t.savedCloud);
     } catch (e: any) {
-      console.error("Cloud Sync Failed:", e);
-      notify(`${t.errorCloud}: I dati sono salvati solo localmente.`, "error");
+      console.error("Cloud Add Failed:", e);
+      notify(`${t.errorCloud}: ${e.message}`, "error");
     } finally {
       setIsSyncing(false);
     }
@@ -165,20 +179,23 @@ const App: React.FC = () => {
   const updateDocument = async (updatedDoc: Document) => {
     setIsSyncing(true);
     try {
+      // Aggiorna prima lo stato locale per reattività immediata
       if (updatedDoc.type === 'invoice') setInvoices(prev => prev.map(inv => inv.id === updatedDoc.id ? updatedDoc : inv));
       else if (updatedDoc.type === 'deliveryNote') setDeliveryNotes(prev => prev.map(dn => dn.id === updatedDoc.id ? updatedDoc : dn));
       else if (updatedDoc.type === 'physicalCount') setPhysicalCounts(prev => prev.map(pc => pc.id === updatedDoc.id ? updatedDoc : pc));
       else if (updatedDoc.type === 'reviewInvoice') setReviewInvoices(prev => prev.map(ri => ri.id === updatedDoc.id ? updatedDoc : ri));
       
+      // Sincronizza con Supabase
       await cloudDb.upsertDocument(updatedDoc);
-    } catch (e) {
-      notify(t.errorCloud, "error");
+    } catch (e: any) {
+      console.error("Update Cloud Error:", e);
+      notify(`Errore Sincronizzazione: ${e.message}`, "error");
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Calcolo Giacenze Consolidate (Il Cuore dell'App)
+  // Calcolo Giacenze Consolidate
   const inventory = useMemo(() => {
     const allDocs = [...invoices, ...deliveryNotes];
     const items: Record<string, Product> = {};
@@ -187,12 +204,10 @@ const App: React.FC = () => {
       const multiplier = doc.isCreditNote ? -1 : 1;
 
       doc.extractedProducts.forEach(p => {
-        // Generiamo la chiave univoca
         const key = getProductKey(p.name, p.sku, p.unitOfMeasure);
         const normUnit = normalizeUnit(p.unitOfMeasure);
         
         if (items[key]) {
-          // Accumulo quantità e valore con precisione decimale
           items[key].quantity = Number((items[key].quantity + (p.quantity * multiplier)).toFixed(4));
           items[key].totalPrice = Number((items[key].totalPrice + (p.totalPrice * multiplier)).toFixed(4));
           
@@ -200,20 +215,18 @@ const App: React.FC = () => {
             items[key].unitPrice = Math.abs(items[key].totalPrice / items[key].quantity);
           }
           
-          // Manteniamo i metadati del carico più recente
           if (new Date(doc.date) >= new Date(items[key].invoiceDate)) {
             items[key].invoiceDate = doc.date;
             items[key].supplier = doc.supplier;
             items[key].invoiceNumber = doc.documentNumber;
           }
         } else {
-          // Inizializzazione nuova voce in inventario
           items[key] = { 
             ...p, 
             quantity: Number((p.quantity * multiplier).toFixed(4)),
             totalPrice: Number((p.totalPrice * multiplier).toFixed(4)),
             unitOfMeasure: normUnit,
-            id: `INV-KEY-${key}`, // L'id contiene la chiave per facilitare il lookup
+            id: `INV-KEY-${key}`, 
             invoiceDate: doc.date,
             supplier: doc.supplier,
             invoiceNumber: doc.documentNumber
@@ -222,7 +235,6 @@ const App: React.FC = () => {
       });
     });
     
-    // Filtriamo i prodotti esauriti (o quasi, per errori di virgola mobile)
     return Object.values(items).filter(p => Math.abs(p.quantity) > 0.0001);
   }, [invoices, deliveryNotes]);
 

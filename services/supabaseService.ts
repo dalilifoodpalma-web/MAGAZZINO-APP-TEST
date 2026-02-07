@@ -26,11 +26,12 @@ const sanitizeDocumentForDb = (doc: Document) => {
     docType: doc.type
   }));
 
+  // Assicuriamoci che i campi opzionali abbiano valori di default validi per il DB
   return {
     id: doc.id,
     document_number: String(doc.documentNumber || 'N/D'),
     date: doc.date || new Date().toISOString().split('T')[0],
-    due_date: doc.dueDate || null,
+    due_date: doc.dueDate || doc.date || null,
     supplier: String(doc.supplier || 'Fornitore Sconosciuto'),
     total_amount: isNaN(doc.totalAmount) ? 0 : Number(doc.totalAmount),
     paid_amount: isNaN(doc.paidAmount || 0) ? 0 : Number(doc.paidAmount || 0),
@@ -56,14 +57,14 @@ export const cloudDb = {
         id: d.id,
         documentNumber: d.document_number,
         date: d.date,
-        dueDate: d.due_date,
+        dueDate: d.due_date || d.date,
         supplier: d.supplier,
         totalAmount: Number(d.total_amount),
         paidAmount: Number(d.paid_amount || 0),
         fileName: d.file_name,
         type: d.type,
         status: 'processed',
-        paymentStatus: d.payment_status || 'unpaid',
+        paymentStatus: (d.payment_status || 'unpaid') as any,
         isCreditNote: !!d.is_credit_note,
         extractedProducts: Array.isArray(d.extracted_products) ? d.extracted_products : []
       })) as Document[];
@@ -79,29 +80,20 @@ export const cloudDb = {
     const dbRecord = sanitizeDocumentForDb(doc);
     
     try {
-      // Primo tentativo: record completo
       const { error } = await supabase
         .from('documents')
         .upsert(dbRecord, { onConflict: 'id' });
       
       if (error) {
-        // Se l'errore indica colonne mancanti (es. due_date, payment_status)
-        if (error.message.includes('due_date') || error.message.includes('payment_status') || error.message.includes('is_credit_note') || error.message.includes('paid_amount')) {
-          console.warn("Database schema mismatch, retrying with minimal record...");
-          
-          // Riprova escludendo le colonne opzionali che potrebbero mancare nel DB dell'utente
-          const { due_date, payment_status, is_credit_note, paid_amount, ...safeRecord } = dbRecord;
-          const { error: retryError } = await supabase
-            .from('documents')
-            .upsert(safeRecord, { onConflict: 'id' });
-            
-          if (retryError) throw retryError;
-        } else {
-          throw error;
+        console.error("Supabase Upsert Error Detailed:", error);
+        // Se l'errore è dovuto a colonne mancanti, avvisiamo lo sviluppatore ma non stritoliamo i dati
+        if (error.code === 'PGRST204' || error.message.includes('column')) {
+          throw new Error(`Errore Schema Database: Assicurati che la tabella 'documents' abbia le colonne: due_date (text), payment_status (text), paid_amount (numeric), is_credit_note (boolean).`);
         }
+        throw error;
       }
     } catch (err: any) {
-      console.error("Supabase Sync Error:", err);
+      console.error("Supabase Sync Failed:", err);
       throw err;
     }
   },
