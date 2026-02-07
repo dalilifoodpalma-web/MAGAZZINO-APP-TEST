@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Upload, AlertCircle, Loader2, Trash2, Landmark, CheckCircle2, XCircle, CreditCard, Receipt, Files, ChevronDown, ChevronUp, AlertTriangle, Filter, Calendar, Users, List, X, ArrowUpDown, SortAsc, SortDesc, Sparkles, Tag, Clock, Zap, Wallet, HandCoins, Split, Plus, Check, LayoutList, LayoutGrid, CalendarDays } from 'lucide-react';
+import { Upload, AlertCircle, Loader2, Trash2, Landmark, CheckCircle2, XCircle, CreditCard, Receipt, Files, ChevronDown, ChevronUp, AlertTriangle, Filter, Calendar, Users, List, X, ArrowUpDown, SortAsc, SortDesc, Sparkles, Tag, Clock, Zap, Wallet, HandCoins, Split, Plus, Check, LayoutList, LayoutGrid, CalendarDays, Edit2 } from 'lucide-react';
 import { Document, Product } from '../types';
 import { extractDocumentData } from '../services/geminiService';
 import { translations, Language } from '../translations';
@@ -32,6 +32,11 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
   const [confirmingDeleteDocId, setConfirmingDeleteDocId] = useState<string | null>(null);
+  
+  // States for manual editing
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Document | null>(null);
+
   const [paymentFilter, setPaymentFilter] = useState<PaymentStatusType>('all');
   const [docTypeFilter, setDocTypeFilter] = useState<DocTypeFilter>('all');
   const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
@@ -84,7 +89,6 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
       for (const data of extractedDataArray) {
         const internalId = `REV-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
         
-        // Pulizia nome fornitore: evitiamo nomi troppo lunghi o con Partita IVA inclusa se possibile
         const cleanSupplier = (data.supplier || 'Fornitore Generico')
           .split('\n')[0]
           .replace(/P\.IVA|PIVA|Partita IVA.*/gi, '')
@@ -110,8 +114,6 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
           id: internalId,
           documentNumber: String(data.documentNumber || 'N/D'),
           date: data.date,
-          // Fallback di sicurezza: se dueDate manca o è uguale alla data del documento ma sembra un errore, 
-          // usiamo la data del documento come base.
           dueDate: data.dueDate || data.date,
           supplier: cleanSupplier,
           fileName: file.name,
@@ -172,8 +174,6 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
 
     const currentPaid = doc.paidAmount || 0;
     const newTotalPaid = Math.min(doc.totalAmount, currentPaid + amountToAdd);
-    
-    // Se raggiungiamo il totale, segna come pagato
     const newStatus = newTotalPaid >= doc.totalAmount ? 'paid' : 'partial';
 
     onUpdate({ 
@@ -184,6 +184,41 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
 
     setAddingInstallmentTo(null);
     setNewInstallmentValue('');
+  };
+
+  // Manual Edit Functions
+  const startEditing = (doc: Document) => {
+    setEditingDocId(doc.id);
+    setEditForm({ ...doc });
+    setConfirmingDeleteDocId(null);
+    setAddingInstallmentTo(null);
+  };
+
+  const cancelEditing = () => {
+    setEditingDocId(null);
+    setEditForm(null);
+  };
+
+  const saveEditing = () => {
+    if (editForm) {
+      // Se l'importo totale è cambiato, ricalcoliamo lo stato del pagamento per coerenza
+      let newStatus = editForm.paymentStatus;
+      const paid = editForm.paidAmount || 0;
+      if (paid >= editForm.totalAmount) {
+        newStatus = 'paid';
+      } else if (paid > 0) {
+        newStatus = 'partial';
+      } else {
+        newStatus = 'unpaid';
+      }
+
+      onUpdate({
+        ...editForm,
+        paymentStatus: newStatus
+      });
+      setEditingDocId(null);
+      setEditForm(null);
+    }
   };
 
   const formatCurrency = (val: number) => val.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
@@ -252,7 +287,6 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
       }, {} as Record<string, Document[]>);
     }
 
-    // Raggruppamento temporale
     return filteredDocuments.reduce((acc, doc) => {
       const d = new Date(doc.date);
       let key = "";
@@ -283,9 +317,7 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
       const paidValue = isPaid ? doc.totalAmount : (isPartial ? (doc.paidAmount || 0) : 0);
       const remainingValue = doc.totalAmount - paidValue;
 
-      if (isPartial) {
-        acc.partialResidue += remainingValue;
-      }
+      if (isPartial) acc.partialResidue += remainingValue;
 
       if (doc.isCreditNote) {
         acc.receivedCredits += paidValue;
@@ -415,16 +447,16 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
               )}
             </div>
             
-            <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-slate-200 overflow-visible no-scrollbar">
+            <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-slate-200">
               <button 
                 onClick={() => { setViewGrouping('none'); setIsDateMenuOpen(false); }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition whitespace-nowrap ${viewGrouping === 'none' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition whitespace-nowrap ${viewGrouping === 'none' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
               >
                 <LayoutList size={14} /> Elenco
               </button>
               <button 
                 onClick={() => { setViewGrouping('supplier'); setIsDateMenuOpen(false); }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition whitespace-nowrap ${viewGrouping === 'supplier' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition whitespace-nowrap ${viewGrouping === 'supplier' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
               >
                 <Users size={14} /> Fornitori
               </button>
@@ -432,7 +464,7 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
               <div className="relative" ref={dateMenuRef}>
                 <button 
                   onClick={() => setIsDateMenuOpen(!isDateMenuOpen)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition whitespace-nowrap ${isTimeGroupActive ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition whitespace-nowrap ${isTimeGroupActive ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
                 >
                   <CalendarDays size={14} /> {isTimeGroupActive ? activeGroupLabel() : "Per Data"}
                   <ChevronDown size={10} className={`transition-transform ${isDateMenuOpen ? 'rotate-180' : ''}`} />
@@ -512,59 +544,121 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
                   <div className="p-24 text-center text-slate-300">
                     <Landmark className="mx-auto mb-4 opacity-5" size={100} />
                     <p className="font-medium text-slate-400">Nessun documento corrispondente ai filtri.</p>
-                    <button 
-                      onClick={() => { setDocTypeFilter('all'); setPaymentFilter('all'); setSelectedSupplier('all'); }}
-                      className="mt-4 text-xs font-black text-indigo-600 hover:underline"
-                    >
-                      Mostra tutti i documenti
-                    </button>
                   </div>
                 ) : (
                   docs.map((doc) => {
+                    const isEditing = editingDocId === doc.id;
                     const isExpanded = expandedDocId === doc.id;
                     const isConfirmingDelete = confirmingDeleteDocId === doc.id;
                     const isPaid = doc.paymentStatus === 'paid';
                     const isPartial = doc.paymentStatus === 'partial';
-                    const isUnpaid = doc.paymentStatus === 'unpaid';
                     const isCN = doc.isCreditNote;
                     const remaining = Math.abs(doc.totalAmount - (doc.paidAmount || 0));
-                    
                     const isAddingInstallment = addingInstallmentTo === doc.id;
 
                     return (
-                      <div key={doc.id} className="group transition-all">
-                        <div className={`p-6 flex items-center justify-between cursor-pointer hover:bg-slate-50 ${isExpanded ? 'bg-indigo-50/20' : ''} ${isConfirmingDelete ? 'bg-rose-50/40' : ''}`} onClick={() => setExpandedDocId(isExpanded ? null : doc.id)}>
+                      <div key={doc.id} className={`group transition-all ${isEditing ? 'bg-indigo-50' : ''}`}>
+                        <div className={`p-6 flex items-center justify-between cursor-pointer hover:bg-slate-50 ${isExpanded ? 'bg-indigo-50/20' : ''} ${isConfirmingDelete ? 'bg-rose-50/40' : ''}`} onClick={() => !isEditing && setExpandedDocId(isExpanded ? null : doc.id)}>
                           <div className="flex items-center gap-5 flex-1">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <h4 className={`font-black text-lg transition-colors ${isConfirmingDelete ? 'text-rose-700' : 'text-slate-900'}`}>{doc.supplier}</h4>
-                                <span className={`px-2 py-0.5 text-[10px] font-black rounded uppercase tracking-tight ${isCN ? 'bg-fuchsia-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                                  {isCN ? "ABBUONO" : `FATTURA #${doc.documentNumber}`}
-                                </span>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
-                                <p className="text-xs text-slate-500 font-medium flex items-center gap-1"><Calendar size={12}/> {new Date(doc.date).toLocaleDateString()}</p>
-                                <p className={`text-xs font-bold flex items-center gap-1 ${!isPaid && new Date(doc.dueDate || doc.date) < new Date() ? 'text-rose-600' : 'text-slate-400'}`}>
-                                  <Clock size={12}/> Scadenza: {new Date(doc.dueDate || doc.date).toLocaleDateString()}
-                                </p>
-                              </div>
+                              {isEditing ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-left-2">
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase">Fornitore</label>
+                                    <input 
+                                      value={editForm?.supplier} 
+                                      onChange={e => setEditForm(f => f ? {...f, supplier: e.target.value} : null)}
+                                      className="w-full px-3 py-2 text-sm font-bold border rounded-xl bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase">Numero Documento</label>
+                                    <input 
+                                      value={editForm?.documentNumber} 
+                                      onChange={e => setEditForm(f => f ? {...f, documentNumber: e.target.value} : null)}
+                                      className="w-full px-3 py-2 text-sm font-bold border rounded-xl bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase">Data Emissione</label>
+                                    <input 
+                                      type="date"
+                                      value={editForm?.date} 
+                                      onChange={e => setEditForm(f => f ? {...f, date: e.target.value} : null)}
+                                      className="w-full px-3 py-2 text-sm font-bold border rounded-xl bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase">Scadenza</label>
+                                    <input 
+                                      type="date"
+                                      value={editForm?.dueDate} 
+                                      onChange={e => setEditForm(f => f ? {...f, dueDate: e.target.value} : null)}
+                                      className="w-full px-3 py-2 text-sm font-bold border rounded-xl bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase">Importo Totale (€)</label>
+                                    <input 
+                                      type="number"
+                                      step="0.01"
+                                      value={editForm?.totalAmount} 
+                                      onChange={e => setEditForm(f => f ? {...f, totalAmount: parseFloat(e.target.value)} : null)}
+                                      className="w-full px-3 py-2 text-sm font-black border rounded-xl bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-4 pt-6">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input 
+                                        type="checkbox" 
+                                        checked={editForm?.isCreditNote} 
+                                        onChange={e => setEditForm(f => f ? {...f, isCreditNote: e.target.checked} : null)}
+                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                      />
+                                      <span className="text-xs font-bold text-slate-700 uppercase">Abbuono</span>
+                                    </label>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className={`font-black text-lg transition-colors ${isConfirmingDelete ? 'text-rose-700' : 'text-slate-900'}`}>{doc.supplier}</h4>
+                                    <span className={`px-2 py-0.5 text-[10px] font-black rounded uppercase tracking-tight ${isCN ? 'bg-fuchsia-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                                      {isCN ? "ABBUONO" : `FATTURA #${doc.documentNumber}`}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                                    <p className="text-xs text-slate-500 font-medium flex items-center gap-1"><Calendar size={12}/> {new Date(doc.date).toLocaleDateString()}</p>
+                                    <p className={`text-xs font-bold flex items-center gap-1 ${!isPaid && new Date(doc.dueDate || doc.date) < new Date() ? 'text-rose-600' : 'text-slate-400'}`}>
+                                      <Clock size={12}/> Scadenza: {new Date(doc.dueDate || doc.date).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
                           
                           <div className="text-right flex items-center gap-4 md:gap-8">
-                            <div className="hidden sm:block">
-                              <div className="flex flex-col items-end">
-                                <p className={`text-xl font-black ${isCN ? 'text-fuchsia-700' : isPaid ? 'text-emerald-700' : isPartial ? 'text-amber-600' : 'text-slate-900'}`}>
-                                  {formatCurrency(isCN ? -Math.abs(doc.totalAmount) : doc.totalAmount)}
-                                </p>
-                                {(isPartial || (isPaid && doc.paidAmount && doc.paidAmount < doc.totalAmount)) && (
-                                  <p className="text-[10px] font-black uppercase text-slate-400">Residuo: <span className="text-rose-600">{formatCurrency(isCN ? -remaining : remaining)}</span></p>
-                                )}
+                            {!isEditing && (
+                              <div className="hidden sm:block">
+                                <div className="flex flex-col items-end">
+                                  <p className={`text-xl font-black ${isCN ? 'text-fuchsia-700' : isPaid ? 'text-emerald-700' : isPartial ? 'text-amber-600' : 'text-slate-900'}`}>
+                                    {formatCurrency(isCN ? -Math.abs(doc.totalAmount) : doc.totalAmount)}
+                                  </p>
+                                  {(isPartial || (isPaid && doc.paidAmount && doc.paidAmount < doc.totalAmount)) && (
+                                    <p className="text-[10px] font-black uppercase text-slate-400">Residuo: <span className="text-rose-600">{formatCurrency(isCN ? -remaining : remaining)}</span></p>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                            )}
                             
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                              {isConfirmingDelete ? (
+                              {isEditing ? (
+                                <div className="flex items-center gap-2">
+                                  <button onClick={saveEditing} className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-100 hover:scale-110 transition-transform"><Check size={20} /></button>
+                                  <button onClick={cancelEditing} className="p-3 bg-white text-slate-400 border border-slate-200 rounded-2xl hover:bg-slate-50 transition-colors"><X size={20} /></button>
+                                </div>
+                              ) : isConfirmingDelete ? (
                                 <div className="flex items-center gap-1.5 bg-rose-100 p-1.5 rounded-2xl border border-rose-200 shadow-lg animate-in zoom-in-95">
                                   <button onClick={() => { onDelete(doc.id); setConfirmingDeleteDocId(null); }} className="px-3 py-2 bg-rose-600 text-white text-[10px] font-black rounded-xl hover:bg-rose-700 transition">SI</button>
                                   <button onClick={() => setConfirmingDeleteDocId(null)} className="px-3 py-2 bg-white text-slate-600 text-[10px] font-black rounded-xl border border-slate-200 hover:bg-slate-50 transition">NO</button>
@@ -600,7 +694,7 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
                                           </div>
                                           <button 
                                             onClick={() => { setAddingInstallmentTo(isAddingInstallment ? null : doc.id); setNewInstallmentValue(''); }}
-                                            className={`p-1.5 rounded-lg transition-all ${isAddingInstallment ? 'bg-rose-500 text-white shadow-rose-100' : 'bg-indigo-600 text-white shadow-indigo-100'} shadow-md`}
+                                            className={`p-1.5 rounded-lg transition-all ${isAddingInstallment ? 'bg-rose-500 text-white shadow-rose-100' : 'bg-indigo-600 text-white shadow-indigo-100 shadow-lg'} `}
                                           >
                                             {isAddingInstallment ? <X size={14} /> : <Plus size={14} />}
                                           </button>
@@ -631,16 +725,21 @@ const InvoiceReviewManager: React.FC<InvoiceReviewManagerProps> = ({
                                     )}
                                   </div>
 
-                                  <button onClick={() => setConfirmingDeleteDocId(doc.id)} className="p-3 text-slate-300 hover:text-rose-600 transition-all opacity-0 group-hover:opacity-100 hover:bg-rose-50 rounded-xl">
-                                    <Trash2 size={22} />
-                                  </button>
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={() => startEditing(doc)} className="p-3 text-slate-300 hover:text-indigo-600 transition-all opacity-0 group-hover:opacity-100 hover:bg-indigo-50 rounded-xl">
+                                      <Edit2 size={22} />
+                                    </button>
+                                    <button onClick={() => setConfirmingDeleteDocId(doc.id)} className="p-3 text-slate-300 hover:text-rose-600 transition-all opacity-0 group-hover:opacity-100 hover:bg-rose-50 rounded-xl">
+                                      <Trash2 size={22} />
+                                    </button>
+                                  </div>
                                 </div>
                               )}
                             </div>
                           </div>
                         </div>
                         
-                        {isExpanded && !isConfirmingDelete && (
+                        {isExpanded && !isConfirmingDelete && !isEditing && (
                           <div className="px-6 pb-6 animate-in slide-in-from-top-2">
                             <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden shadow-inner p-5 space-y-4">
                               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

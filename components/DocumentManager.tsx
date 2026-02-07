@@ -31,6 +31,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onAdd, onU
   const isInvoice = type === 'invoice';
   const Icon = isInvoice ? FileText : Truck;
   const label = isInvoice ? t.invoices : t.deliveryNotes;
+  const subtitle = isInvoice ? t.invoicesSubtitle : t.deliveryNotesSubtitle;
 
   useEffect(() => {
     let interval: any;
@@ -175,7 +176,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onAdd, onU
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold text-slate-900">Gestione {label}</h1>
-        <p className="text-slate-500">{t.inventoryMonitoring}</p>
+        <p className="text-slate-500">{subtitle}</p>
       </div>
 
       <div className={`bg-white border-2 border-dashed rounded-3xl p-10 text-center transition-all ${isUploading ? 'border-indigo-400 bg-indigo-50 shadow-inner' : 'border-slate-300 hover:border-indigo-400 hover:bg-slate-50 shadow-sm'}`}>
