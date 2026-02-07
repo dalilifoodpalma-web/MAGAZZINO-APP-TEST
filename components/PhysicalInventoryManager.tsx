@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Upload, AlertCircle, Loader2, Trash2, Hash, ChevronDown, ChevronUp, AlertTriangle, ClipboardCheck, FileSpreadsheet, PlusCircle, MinusCircle, X, Download, Eye, EyeOff, TrendingDown, TrendingUp, DollarSign, CheckCircle2, HelpCircle } from 'lucide-react';
+import { Upload, AlertCircle, Loader2, Trash2, Hash, ChevronDown, ChevronUp, AlertTriangle, ClipboardCheck, FileSpreadsheet, PlusCircle, MinusCircle, X, Download, Eye, EyeOff, TrendingDown, TrendingUp, Euro, CheckCircle2, HelpCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Document, Product } from '../types';
 import { extractDocumentData } from '../services/geminiService';
@@ -358,7 +358,7 @@ const PhysicalInventoryManager: React.FC<PhysicalInventoryManagerProps> = ({
                           </div>
                         </div>
                         <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl flex items-center gap-4">
-                          <div className="p-3 bg-slate-900 text-white rounded-xl"><DollarSign size={24}/></div>
+                          <div className="p-3 bg-slate-900 text-white rounded-xl"><Euro size={24}/></div>
                           <div>
                             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Saldo Scostamento</p>
                             <p className={`text-xl font-black ${summaryMetrics.surplusValue - summaryMetrics.deficitValue >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
