@@ -34,26 +34,28 @@ const PhysicalInventoryManager: React.FC<PhysicalInventoryManagerProps> = ({
 
   const formatCurrency = (val: number) => val.toLocaleString(language === 'it' ? 'it-IT' : 'en-US', { style: 'currency', currency: 'EUR' });
 
-  // Funzione di lookup ultra-flessibile per trovare il prodotto nel magazzino
+  // Funzione di lookup ultra-flessibile sincronizzata con App.tsx
   const getSystemProductByInfo = (name: string, sku: string, unit: string) => {
-    // 1. Tentativo con chiave primaria (SKU prioritario)
     const searchKey = getProductKey(name, sku, unit);
+    
+    // 1. Tentativo Match Esatto tramite Chiave Generata (SKU o Nome+UM)
     const exactMatch = inventory.find(p => p.id.replace('INV-KEY-', '') === searchKey);
     if (exactMatch) return exactMatch;
 
-    // 2. Fallback: Se la chiave principale non trova nulla, proviamo solo per Nome e Unità normalizzati
-    // Utile se l'Excel ha uno SKU diverso o mancante rispetto alla fattura PDF
+    // 2. Fallback: Match solo su SKU normalizzato (se presente)
+    const s = cleanString(sku);
+    if (s && s.length > 0) {
+      const skuMatch = inventory.find(p => cleanString(p.sku) === s);
+      if (skuMatch) return skuMatch;
+    }
+
+    // 3. Fallback: Match solo su Nome normalizzato (senza considerare l'unità)
     const n = cleanString(name);
-    const u = normalizeUnit(unit);
-    const nameOnlyMatch = inventory.find(p => {
-      const invKey = p.id.replace('INV-KEY-', '');
-      return invKey.includes(`NAME-${n}-${u}`);
-    });
+    const nameMatch = inventory.find(p => cleanString(p.name) === n);
     
-    return nameOnlyMatch;
+    return nameMatch;
   };
 
-  // Funzione per estrarre valori da righe Excel con nomi colonne variabili
   const getExcelVal = (row: any, keys: string[]) => {
     const rowKeys = Object.keys(row);
     for (const k of keys) {
@@ -63,11 +65,9 @@ const PhysicalInventoryManager: React.FC<PhysicalInventoryManagerProps> = ({
     return null;
   };
 
-  // Funzione per pulire e convertire quantità numeriche (gestisce virgole italiane)
   const parseQuantity = (val: any): number => {
     if (val === undefined || val === null) return 0;
     if (typeof val === 'number') return val;
-    // Converte "10,50" in "10.50" e rimuove caratteri non numerici
     const cleaned = val.toString().replace(',', '.').replace(/[^-0.9.]/g, '');
     const num = parseFloat(cleaned);
     return isNaN(num) ? 0 : Number(num.toFixed(4));
@@ -126,7 +126,6 @@ const PhysicalInventoryManager: React.FC<PhysicalInventoryManagerProps> = ({
           };
         }).filter(p => p.name !== 'Articolo' && p.name !== '') as Product[];
       } else {
-        // Logica PDF (Gemini)
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
           reader.onload = () => resolve((reader.result as string).split(',')[1]);
@@ -270,7 +269,7 @@ const PhysicalInventoryManager: React.FC<PhysicalInventoryManagerProps> = ({
           {documents.length === 0 ? (
             <div className="p-24 text-center text-slate-300">
               <ClipboardCheck className="mx-auto mb-4 opacity-5" size={100} />
-              <p className="font-medium">Nessun inventario registrato. Carica il primo per iniziare il confronto.</p>
+              <p className="font-medium text-slate-400">Nessun inventario registrato. Carica il primo per iniziare il confronto.</p>
             </div>
           ) : (
             documents.map((doc) => {
@@ -347,14 +346,14 @@ const PhysicalInventoryManager: React.FC<PhysicalInventoryManagerProps> = ({
                         <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl flex items-center gap-4">
                           <div className="p-3 bg-emerald-600 text-white rounded-xl"><TrendingUp size={24}/></div>
                           <div>
-                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Eccedenze (FISICO > SISTEMA)</p>
+                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Eccedenze (FISICO &gt; SISTEMA)</p>
                             <p className="text-xl font-black text-emerald-800">{formatCurrency(summaryMetrics.surplusValue)}</p>
                           </div>
                         </div>
                         <div className="bg-rose-50 border border-rose-100 p-5 rounded-2xl flex items-center gap-4">
                           <div className="p-3 bg-rose-600 text-white rounded-xl"><TrendingDown size={24}/></div>
                           <div>
-                            <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Ammanchi (SISTEMA > FISICO)</p>
+                            <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Ammanchi (SISTEMA &gt; FISICO)</p>
                             <p className="text-xl font-black text-rose-800">{formatCurrency(summaryMetrics.deficitValue)}</p>
                           </div>
                         </div>
