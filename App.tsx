@@ -238,10 +238,11 @@ const App: React.FC = () => {
   }, [invoices, deliveryNotes]);
 
   const availableYears = useMemo(() => {
-    const allDocs = [...invoices, ...deliveryNotes, ...physicalCounts, ...reviewInvoices];
-    const years = allDocs.map(d => new Date(d.date).getFullYear());
+    // Il menu di svuotamento in magazzino deve riflettere solo Fatture e Bolle
+    const warehouseDocs = [...invoices, ...deliveryNotes];
+    const years = warehouseDocs.map(d => new Date(d.date).getFullYear());
     return Array.from(new Set(years)).sort((a, b) => b - a);
-  }, [invoices, deliveryNotes, physicalCounts, reviewInvoices]);
+  }, [invoices, deliveryNotes]);
 
   const handleExportInventory = () => {
     if (inventory.length === 0) {
@@ -271,43 +272,39 @@ const App: React.FC = () => {
 
   const handleResetWarehouse = async (year?: number) => {
     const message = year 
-      ? `ATTENZIONE: Questa azione cancellerà TUTTI i dati del magazzino relativi all'anno ${year}. Confermi?`
-      : "ATTENZIONE: Questa azione cancellerà TUTTI i dati presenti nel Magazzino (Fatture, Bolle, Inventari e Revisioni) di OGNI anno. Sei sicuro di voler procedere?";
+      ? `ATTENZIONE: Questa azione eliminerà DEFINITIVAMENTE tutte le Fatture e Bolle del ${year}. \n\nL'Inventario Fisico e la Revisione Fatture NON verranno toccati. Confermi?`
+      : "ATTENZIONE: Questa azione eliminerà TUTTE le Fatture e le Bolle di OGNI anno caricate nel magazzino. \n\nL'Inventario Fisico e la Revisione Fatture NON verranno toccati. Sei sicuro di voler procedere?";
     
     const confirmation = window.confirm(message);
     if (!confirmation) return;
 
     setIsSyncing(true);
     try {
-      const allDocs = [...invoices, ...deliveryNotes, ...physicalCounts, ...reviewInvoices];
+      // Identifichiamo i documenti da rimuovere (Solo Fatture e Bolle)
+      const targetDocs = [...invoices, ...deliveryNotes];
       const docsToRemove = year 
-        ? allDocs.filter(d => new Date(d.date).getFullYear() === year)
-        : allDocs;
+        ? targetDocs.filter(d => new Date(d.date).getFullYear() === year)
+        : targetDocs;
 
       const idsToRemove = docsToRemove.map(d => d.id);
 
+      // Aggiornamento Stato Locale
       if (year) {
         setInvoices(prev => prev.filter(d => new Date(d.date).getFullYear() !== year));
         setDeliveryNotes(prev => prev.filter(d => new Date(d.date).getFullYear() !== year));
-        setPhysicalCounts(prev => prev.filter(d => new Date(d.date).getFullYear() !== year));
-        setReviewInvoices(prev => prev.filter(d => new Date(d.date).getFullYear() !== year));
       } else {
         setInvoices([]);
         setDeliveryNotes([]);
-        setPhysicalCounts([]);
-        setReviewInvoices([]);
-        localStorage.removeItem('invoices');
-        localStorage.removeItem('deliveryNotes');
-        localStorage.removeItem('physicalCounts');
-        localStorage.removeItem('reviewInvoices');
+        // Non rimuoviamo i file da localStorage per gli altri tipi (physicalCounts, reviewInvoices)
       }
 
+      // Sincronizzazione Cloud
       if (supabase && idsToRemove.length > 0) {
         for (const id of idsToRemove) {
-          await cloudDb.deleteDocument(id).catch(e => console.warn("Errore eliminazione:", id));
+          await cloudDb.deleteDocument(id).catch(e => console.warn("Errore eliminazione cloud:", id));
         }
       }
-      notify(year ? `Dati del ${year} eliminati.` : "Magazzino svuotato.", "success");
+      notify(year ? `Dati magazzino del ${year} eliminati.` : "Tutte le Fatture e Bolle rimosse.", "success");
     } catch (e) {
       notify("Errore durante lo svuotamento.", "error");
     } finally {

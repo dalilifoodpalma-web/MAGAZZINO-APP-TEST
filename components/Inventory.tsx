@@ -87,21 +87,24 @@ const Inventory: React.FC<InventoryProps> = ({
     if (!cat) return 'Generico';
     const c = cat.toLowerCase().trim();
     
-    // Mappatura pro-attiva per raggruppare termini simili
-    if (c.includes('vegetable') || c.includes('verdura') || c.includes('insalata') || c.includes('ortaggi')) return 'Verdura';
-    if (c.includes('fruit') || c.includes('frutta')) return 'Frutta';
-    if (c.includes('carne') || c.includes('meat') || c.includes('pollame') || c.includes('macelleria')) return 'Carne';
-    if (c.includes('pesce') || c.includes('fish') || c.includes('mare') || c.includes('ittico')) return 'Pesce';
-    if (c.includes('dolce') || c.includes('sweet') || c.includes('dessert') || c.includes('pasticceria') || c.includes('zucchero')) return 'Dolci';
-    if (c.includes('latticin') || c.includes('formagg') || c.includes('dairy') || c.includes('latte')) return 'Latticini';
-    if (c.includes('bevande') || c.includes('drink') || c.includes('beverage') || c.includes('alcol') || c.includes('vino')) return 'Bevande';
-    if (c.includes('tasse') || c.includes('oneri') || c.includes('spese') || c.includes('bollo') || c.includes('trasporto')) return 'Tasse ed oneri';
-    if (c.includes('surgelat') || c.includes('frozen')) return 'Surgelati';
-    if (c.includes('pulizia') || c.includes('detergent') || c.includes('cleaning')) return 'Pulizia';
-    if (c.includes('gastronomia') || c.includes('preparati') || c.includes('rosticceria')) return 'Gastronomia';
-    if (c.includes('alimentari') || c.includes('pasta') || c.includes('olio') || c.includes('secco')) return 'Alimentari';
+    // Mappatura pro-attiva per raggruppare termini simili e varianti linguistiche
+    if (c.includes('vegetable') || c.includes('verdura') || c.includes('insalata') || c.includes('ortaggi') || c.includes('broccoli') || c.includes('melanzane')) return 'Verdura';
+    if (c.includes('fruit') || c.includes('frutta') || c.includes('mele') || c.includes('pere') || c.includes('banane')) return 'Frutta';
+    if (c.includes('carne') || c.includes('meat') || c.includes('pollame') || c.includes('macelleria') || c.includes('bovino') || c.includes('suino')) return 'Carne';
+    if (c.includes('pesce') || c.includes('fish') || c.includes('mare') || c.includes('ittico') || c.includes('crostacei') || c.includes('molluschi')) return 'Pesce';
+    if (c.includes('pane') || c.includes('bread') || c.includes('bakery') || c.includes('panetteria') || c.includes('grissini') || c.includes('focaccia')) return 'Panetteria';
+    if (c.includes('dolce') || c.includes('sweet') || c.includes('dessert') || c.includes('pasticceria') || c.includes('zucchero') || c.includes('cioccolato')) return 'Dolci';
+    if (c.includes('latticin') || c.includes('formagg') || c.includes('dairy') || c.includes('latte') || c.includes('panna') || c.includes('uova')) return 'Latticini';
+    if (c.includes('salumi') || c.includes('insaccati') || c.includes('prosciutto') || c.includes('salame') || c.includes('bresaola')) return 'Salumi';
+    if (c.includes('bevande') || c.includes('drink') || c.includes('beverage') || c.includes('alcol') || c.includes('vino') || c.includes('birra') || c.includes('acqua')) return 'Bevande';
+    if (c.includes('tasse') || c.includes('oneri') || c.includes('spese') || c.includes('bollo') || c.includes('trasporto') || c.includes('conai')) return 'Tasse ed oneri';
+    if (c.includes('surgelat') || c.includes('frozen') || c.includes('congelat')) return 'Surgelati';
+    if (c.includes('pulizia') || c.includes('detergent') || c.includes('cleaning') || c.includes('detersivo')) return 'Pulizia';
+    if (c.includes('gastronomia') || c.includes('preparati') || c.includes('rosticceria') || c.includes('piatto pronto')) return 'Gastronomia';
+    if (c.includes('alimentari') || c.includes('pasta') || c.includes('olio') || c.includes('secco') || c.includes('farina') || c.includes('scatolame')) return 'Alimentari';
+    if (c.includes('packaging') || c.includes('imballaggi') || c.includes('confezionamento') || c.includes('vaschette') || c.includes('carta')) return 'Packaging';
     
-    // Fallback con Capitalize
+    // Fallback con Capitalize per mantenere ordine
     return cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
   };
 

@@ -26,7 +26,7 @@ const DOCUMENT_RESPONSE_SCHEMA = {
                 unit: { type: Type.STRING, description: "Usa solo 'UD' per unità/pezzo, 'KG' per peso, 'CJ' per casse/confezioni." },
                 unitPrice: { type: Type.NUMBER },
                 totalPrice: { type: Type.NUMBER },
-                category: { type: Type.STRING, description: "Assegna una categoria specifica (es. Frutta, Verdura, Carne, Pesce, Latticini, Salumi, Dolci, Panetteria, Bevande, Surgelati, Gastronomia, Pulizia, Packaging, Tasse ed oneri)." }
+                category: { type: Type.STRING, description: "Assegna una categoria specifica tra: Frutta, Verdura, Carne, Pesce, Latticini, Salumi, Dolci, Panetteria, Bevande, Alimentari, Surgelati, Gastronomia, Pulizia, Packaging, Tasse ed oneri." }
               },
               required: ["name", "quantity", "unit"]
             }
@@ -40,30 +40,34 @@ const DOCUMENT_RESPONSE_SCHEMA = {
 };
 
 const SYSTEM_INSTRUCTION = `Sei un esperto contabile e gestore magazzino specializzato nel settore food & beverage.
-Estrai i dati in JSON con precisione assoluta.
+Il tuo compito è analizzare fatture e bolle con precisione chirurgica, estraendo i prodotti e classificandoli in modo LOGICO.
 
-CLASSIFICAZIONE PRODOTTI (CATEGORY):
-Classifica ogni riga del documento in una di queste macro-categorie o creane una pertinente se necessario:
-- 'Frutta' / 'Verdura'
-- 'Carne' (Pollame, Bovino, Suino, ecc.)
-- 'Pesce' (Fresco, Congelato, Crostacei)
-- 'Latticini' (Formaggi, Latte, Burro, Panna)
-- 'Salumi' (Prosciutti, Salami, Insaccati)
-- 'Dolci' (Zucchero, Cioccolato, Pasticceria, Dessert)
-- 'Bevande' (Acqua, Vino, Birra, Bibite, Alcolici)
-- 'Alimentari' (Pasta, Farina, Olio, Spezie, Scatolame)
-- 'Gastronomia' (Preparati, Sughi pronti, Rosticceria)
-- 'Surgelati' (Se non già classificati come carne/pesce)
-- 'Pulizia' (Detersivi, Sanificanti)
-- 'Packaging' (Vaschette, Carta, Scatole)
-- 'Tasse ed oneri' (Bolli, Trasporto, Commissioni, Oneri bancari, Spese incasso)
+LOGICA DI CLASSIFICAZIONE (CATEGORY):
+Devi assegnare ogni riga a una di queste categorie predefinite. Non inventare nuove categorie a meno che non sia strettamente necessario.
+- 'Frutta': Agrumi, frutti di bosco, frutta esotica, mele, pere, ecc.
+- 'Verdura': Ortaggi freschi, insalate, tuberi, pomodori, verdure a foglia.
+- 'Carne': Bovino, suino, ovino, pollame, selvaggina, sia fresco che lavorato (esclusi salumi).
+- 'Pesce': Pesce fresco o surgelato, crostacei, molluschi.
+- 'Latticini': Formaggi freschi e stagionati, latte, panna, burro, yogurt, uova.
+- 'Salumi': Prosciutti, salami, insaccati, bresaola, pancetta.
+- 'Dolci': Zucchero, cioccolato, semilavorati per pasticceria, dessert pronti.
+- 'Panetteria': Pane, focacce, grissini, prodotti da forno salati, basi pizza.
+- 'Bevande': Acqua, bibite gassate, succhi di frutta, vino, birra, alcolici.
+- 'Alimentari': Pasta, riso, farina, olio, aceto, spezie, conserve, scatolame secco.
+- 'Surgelati': Qualsiasi prodotto chiaramente indicato come surgelato (se non è carne o pesce).
+- 'Gastronomia': Piatti pronti, sughi pronti, basi per cucina professionale.
+- 'Pulizia': Detersivi, saponi, sanificanti, attrezzatura per pulizia.
+- 'Packaging': Contenitori, vaschette, pellicola, carta paglia, scatole pizza, tovaglioli.
+- 'Tasse ed oneri': Bollo in fattura, spese di trasporto, contributi CONAI, spese incasso.
 
-REGOLE FORNITORE E DATE:
-- Il FORNITORE è il 'Cedente'. Ignora il cliente.
-- Date sempre YYYY-MM-DD.
-- 'UD' = Pezzi, 'KG' = Peso, 'CJ' = Casse/Confezioni.
+REGOLE MANDATORIE:
+1. Se un prodotto è 'Salmone Affumicato', va in 'Pesce', non 'Salumi'.
+2. Se un prodotto è 'Olio Extravergine', va in 'Alimentari'.
+3. Se vedi 'Contributo Ambientale' o 'Spese Trasporto', usa 'Tasse ed oneri'.
+4. Il FORNITORE è sempre il 'Cedente'. Ignora i dati del destinatario/cliente.
+5. Formato date: YYYY-MM-DD.
 
-Solo JSON in uscita.`;
+Restituisci esclusivamente un oggetto JSON valido secondo lo schema fornito.`;
 
 const normalizeDate = (dateStr: string): string => {
   if (!dateStr || dateStr === "N/D" || dateStr === "0") return new Date().toISOString().split('T')[0];
@@ -92,7 +96,7 @@ export const extractDocumentData = async (base64Data: string, mimeType: string, 
         {
           parts: [
             { inlineData: { data: base64Data, mimeType: mimeType } },
-            { text: "Estrai prodotti e totali in JSON. Classifica ogni riga con la categoria merceologica corretta (Carne, Pesce, Dolci, Tasse, ecc.)." }
+            { text: "Estrai prodotti e totali in JSON. Assicurati che ogni prodotto sia assegnato alla categoria merceologica più logica (es. carne, pesce, alimentari, ecc.)." }
           ]
         }
       ],
@@ -102,7 +106,6 @@ export const extractDocumentData = async (base64Data: string, mimeType: string, 
         responseSchema: DOCUMENT_RESPONSE_SCHEMA,
         temperature: 0,
         topP: 1,
-        thinkingConfig: { thinkingBudget: 0 },
       },
     });
 
